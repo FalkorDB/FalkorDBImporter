@@ -1,0 +1,17 @@
+{
+  "name": "@falkordb-importer/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  },
+  "author": "FalkorDB Team",
+  "license": "Apache-2.0",
+  "description": "Shared TypeScript types for FalkorDB Data Importer"
+}
