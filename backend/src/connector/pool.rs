@@ -44,6 +44,9 @@ pub struct ConnectionPool<T: DataSourceConnector> {
 
     /// Connection factory function
     factory: Arc<dyn Fn() -> Result<T, ConnectorError> + Send + Sync>,
+
+    /// Flag indicating if the pool is closed
+    closed: Arc<Mutex<bool>>,
 }
 
 impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
@@ -59,16 +62,30 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
             connections: Arc::new(Mutex::new(Vec::new())),
             semaphore,
             factory: Arc::new(factory),
+            closed: Arc::new(Mutex::new(false)),
         }
     }
 
     /// Get a connection from the pool
     #[allow(dead_code)]
     pub async fn acquire(&self) -> ConnectorResult<PooledConnection<T>> {
-        // Acquire a permit from the semaphore
-        let permit = self.semaphore.clone().acquire_owned().await.map_err(|e| {
-            ConnectorError::ConnectionPool(format!("Failed to acquire permit: {}", e))
-        })?;
+        // Check if pool is closed
+        if *self.closed.lock().await {
+            return Err(ConnectorError::ConnectionPool(
+                "Connection pool is closed".to_string(),
+            ));
+        }
+
+        // Acquire a permit from the semaphore with timeout
+        let timeout_duration = std::time::Duration::from_secs(self.config.connection_timeout);
+        let permit = tokio::time::timeout(timeout_duration, self.semaphore.clone().acquire_owned())
+            .await
+            .map_err(|_| {
+                ConnectorError::ConnectionPool("Timed out acquiring connection".to_string())
+            })?
+            .map_err(|e| {
+                ConnectorError::ConnectionPool(format!("Failed to acquire permit: {}", e))
+            })?;
 
         // Try to get an existing connection
         let mut connections = self.connections.lock().await;
@@ -77,6 +94,7 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
             return Ok(PooledConnection {
                 connection: Some(conn),
                 pool: self.connections.clone(),
+                closed: self.closed.clone(),
                 _permit: permit,
             });
         }
@@ -92,6 +110,7 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
         Ok(PooledConnection {
             connection: Some(Arc::new(Mutex::new(connector))),
             pool: self.connections.clone(),
+            closed: self.closed.clone(),
             _permit: permit,
         })
     }
@@ -105,6 +124,10 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
     /// Close all connections in the pool
     #[allow(dead_code)]
     pub async fn close(&self) -> ConnectorResult<()> {
+        // Mark pool as closed
+        *self.closed.lock().await = true;
+
+        // Drain and disconnect all connections
         let mut connections = self.connections.lock().await;
         for conn in connections.drain(..) {
             let mut c = conn.lock().await;
@@ -118,6 +141,7 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
 pub struct PooledConnection<T: DataSourceConnector + 'static> {
     connection: Option<Arc<Mutex<T>>>,
     pool: Arc<Mutex<Vec<Arc<Mutex<T>>>>>,
+    closed: Arc<Mutex<bool>>,
     _permit: tokio::sync::OwnedSemaphorePermit,
 }
 
@@ -133,10 +157,35 @@ impl<T: DataSourceConnector + 'static> Drop for PooledConnection<T> {
     fn drop(&mut self) {
         if let Some(conn) = self.connection.take() {
             let pool = self.pool.clone();
-            tokio::spawn(async move {
-                let mut connections = pool.lock().await;
-                connections.push(conn);
-            });
+            let closed = self.closed.clone();
+
+            // Try to return to pool or disconnect if closed
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    if *closed.lock().await {
+                        // Pool is closed, disconnect the connection
+                        let mut c = conn.lock().await;
+                        let _ = c.disconnect().await;
+                    } else {
+                        // Pool is open, return connection
+                        let mut connections = pool.lock().await;
+                        connections.push(conn);
+                    }
+                });
+            } else {
+                // No runtime available, use blocking approach
+                futures::executor::block_on(async move {
+                    if *closed.lock().await {
+                        // Pool is closed, disconnect the connection
+                        let mut c = conn.lock().await;
+                        let _ = c.disconnect().await;
+                    } else {
+                        // Pool is open, return connection
+                        let mut connections = pool.lock().await;
+                        connections.push(conn);
+                    }
+                });
+            }
         }
     }
 }

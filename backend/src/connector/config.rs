@@ -240,6 +240,11 @@ impl DataSourceConfig {
                     return Err("Path cannot be empty".to_string());
                 }
             }
+            Self::Generic { connector_type, .. } => {
+                if connector_type.is_empty() {
+                    return Err("Connector type cannot be empty".to_string());
+                }
+            }
             // Add validation for other types as needed
             _ => {}
         }
@@ -320,6 +325,24 @@ mod tests {
         let config = DataSourceConfig::Sqlite {
             path: "".to_string(),
             read_only: false,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_generic_config_validation() {
+        let config = DataSourceConfig::Generic {
+            connector_type: "custom".to_string(),
+            properties: HashMap::new(),
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_generic_config_validation_empty_type() {
+        let config = DataSourceConfig::Generic {
+            connector_type: "".to_string(),
+            properties: HashMap::new(),
         };
         assert!(config.validate().is_err());
     }
