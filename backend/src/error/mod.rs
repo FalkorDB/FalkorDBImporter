@@ -31,15 +31,29 @@ struct ErrorResponse {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, _error_message) = match &self {
-            AppError::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+        let (status, client_message) = match &self {
+            AppError::Config(_msg) => {
+                // Log the full error server-side
+                tracing::error!("Configuration error: {}", self);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal error occurred".to_string(),
+                )
+            }
+            AppError::Internal(_msg) => {
+                // Log the full error server-side
+                tracing::error!("Internal server error: {}", self);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal error occurred".to_string(),
+                )
+            }
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
         };
 
         let body = Json(ErrorResponse {
-            error: self.to_string(),
+            error: client_message,
         });
 
         (status, body).into_response()

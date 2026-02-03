@@ -17,6 +17,9 @@ use utoipa_swagger_ui::SwaggerUi;
         (name = "health", description = "Health check endpoints"),
         (name = "api", description = "API endpoints")
     ),
+    servers(
+        (url = "/api", description = "API server")
+    ),
     info(
         title = "FalkorDB Importer API",
         version = "0.1.0",
