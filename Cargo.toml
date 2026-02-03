@@ -36,4 +36,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 config = "0.14"
 
 # Testing
-mockall = "0.13"
+mockall = "0.14"
