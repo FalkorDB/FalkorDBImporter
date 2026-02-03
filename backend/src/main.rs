@@ -27,11 +27,15 @@ async fn main() -> AppResult<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Validate configuration after logging is initialized
+    let run_mode = std::env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
+    config.validate(&run_mode);
+
     tracing::info!(
         "Starting FalkorDB Importer Backend v{}",
         env!("CARGO_PKG_VERSION")
     );
-    tracing::info!("Configuration loaded: {:?}", config);
+    tracing::info!("Configuration loaded: {}", config);
 
     // Set up static file serving with SPA fallback
     tracing::info!("Serving frontend from: {}", config.server.frontend_dir);
@@ -43,8 +47,9 @@ async fn main() -> AppResult<()> {
     // Build API router
     let api_router = api::create_router();
 
-    // Build main application router
+    // Build main application router with backward-compatible /health endpoint
     let app = Router::new()
+        .route("/health", axum::routing::get(api::health::health_check))
         .nest("/api", api_router)
         .fallback_service(serve_dir)
         .layer(TraceLayer::new_for_http())
@@ -54,7 +59,7 @@ async fn main() -> AppResult<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
     tracing::info!("Listening on http://{}", addr);
     tracing::info!(
-        "API documentation available at http://{}/api/swagger-ui/",
+        "API documentation available at http://{}/api/swagger-ui",
         addr
     );
 

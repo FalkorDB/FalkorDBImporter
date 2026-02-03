@@ -2,6 +2,7 @@ use crate::error::{AppError, AppResult};
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::env;
+use std::fmt;
 
 /// Application configuration
 #[derive(Debug, Deserialize, Clone)]
@@ -10,6 +11,20 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub falkordb: FalkorDbConfig,
     pub logging: LoggingConfig,
+}
+
+impl fmt::Display for AppConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "AppConfig {{ server: {{ host: {}, port: {} }}, falkordb: {{ host: {}, port: {} }}, logging: {{ level: {} }} }}",
+            self.server.host,
+            self.server.port,
+            self.falkordb.host,
+            self.falkordb.port,
+            self.logging.level
+        )
+    }
 }
 
 /// Server configuration
@@ -57,9 +72,22 @@ impl AppConfig {
             .build()
             .map_err(|e| AppError::Config(format!("Failed to load configuration: {}", e)))?;
 
-        config
+        let app_config: AppConfig = config
             .try_deserialize()
-            .map_err(|e| AppError::Config(format!("Failed to parse configuration: {}", e)))
+            .map_err(|e| AppError::Config(format!("Failed to parse configuration: {}", e)))?;
+
+        Ok(app_config)
+    }
+
+    /// Validate configuration, should be called after logging is initialized
+    pub fn validate(&self, run_mode: &str) {
+        // Warn about using localhost in production mode
+        if run_mode == "production" && self.falkordb.host == "localhost" {
+            tracing::warn!(
+                "FalkorDB host is set to 'localhost' in production mode. \
+                 This may cause connection issues. Please configure APP_FALKORDB__HOST."
+            );
+        }
     }
 }
 
