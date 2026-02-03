@@ -1,5 +1,5 @@
 use crate::error::{AppError, AppResult};
-use crate::jobs::{JobManager, NodeMapping, EdgeMapping, ColumnMapping};
+use crate::jobs::{ColumnMapping, EdgeMapping, JobManager, NodeMapping};
 use axum::{
     extract::{Path, Request, State},
     http::{header, StatusCode},
@@ -12,10 +12,7 @@ pub struct DataTransformer;
 
 impl DataTransformer {
     /// Transform a value according to column mapping
-    pub fn transform_value(
-        value: &serde_json::Value,
-        column: &ColumnMapping,
-    ) -> String {
+    pub fn transform_value(value: &serde_json::Value, column: &ColumnMapping) -> String {
         let mut result = match value {
             serde_json::Value::String(s) => s.clone(),
             serde_json::Value::Number(n) => n.to_string(),
@@ -40,15 +37,39 @@ impl DataTransformer {
     /// Convert value to specified data type
     fn convert_type(value: &str, data_type: &str) -> String {
         match data_type.to_lowercase().as_str() {
-            "integer" | "int" => {
-                value.parse::<i64>().map(|v| v.to_string()).unwrap_or_default()
-            }
-            "float" | "double" => {
-                value.parse::<f64>().map(|v| v.to_string()).unwrap_or_default()
-            }
-            "boolean" | "bool" => {
-                value.parse::<bool>().map(|v| v.to_string()).unwrap_or_default()
-            }
+            "integer" | "int" => match value.parse::<i64>() {
+                Ok(v) => v.to_string(),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to parse '{}' as integer: {}. Keeping original value.",
+                        value,
+                        e
+                    );
+                    value.to_string()
+                }
+            },
+            "float" | "double" => match value.parse::<f64>() {
+                Ok(v) => v.to_string(),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to parse '{}' as float: {}. Keeping original value.",
+                        value,
+                        e
+                    );
+                    value.to_string()
+                }
+            },
+            "boolean" | "bool" => match value.parse::<bool>() {
+                Ok(v) => v.to_string(),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to parse '{}' as boolean: {}. Keeping original value.",
+                        value,
+                        e
+                    );
+                    value.to_string()
+                }
+            },
             _ => value.to_string(),
         }
     }
@@ -91,10 +112,7 @@ impl DataTransformer {
 }
 
 /// Validate authentication token for a job
-fn validate_auth(
-    job: &crate::jobs::Job,
-    request: &Request,
-) -> AppResult<()> {
+fn validate_auth(job: &crate::jobs::Job, request: &Request) -> AppResult<()> {
     // If job has an auth token, validate it
     if let Some(expected_token) = &job.auth_token {
         let auth_header = request
@@ -103,12 +121,14 @@ fn validate_auth(
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| AppError::BadRequest("Missing Authorization header".to_string()))?;
 
-        let provided_token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| AppError::BadRequest("Invalid Authorization header format".to_string()))?;
+        let provided_token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            AppError::BadRequest("Invalid Authorization header format".to_string())
+        })?;
 
         if provided_token != expected_token {
-            return Err(AppError::BadRequest("Invalid authentication token".to_string()));
+            return Err(AppError::BadRequest(
+                "Invalid authentication token".to_string(),
+            ));
         }
     }
     Ok(())
@@ -220,7 +240,10 @@ fn generate_node_csv(node_mapping: &NodeMapping) -> AppResult<String> {
 
     // Generate data rows
     for row_data in &node_mapping.data {
-        csv_content.push_str(&DataTransformer::generate_csv_row(row_data, &node_mapping.columns));
+        csv_content.push_str(&DataTransformer::generate_csv_row(
+            row_data,
+            &node_mapping.columns,
+        ));
         csv_content.push('\n');
     }
 
@@ -237,7 +260,10 @@ fn generate_edge_csv(edge_mapping: &EdgeMapping) -> AppResult<String> {
 
     // Generate data rows
     for row_data in &edge_mapping.data {
-        csv_content.push_str(&DataTransformer::generate_csv_row(row_data, &edge_mapping.columns));
+        csv_content.push_str(&DataTransformer::generate_csv_row(
+            row_data,
+            &edge_mapping.columns,
+        ));
         csv_content.push('\n');
     }
 
@@ -253,8 +279,14 @@ mod tests {
     #[test]
     fn test_csv_field_escaping() {
         assert_eq!(DataTransformer::escape_csv_field("simple"), "simple");
-        assert_eq!(DataTransformer::escape_csv_field("with,comma"), "\"with,comma\"");
-        assert_eq!(DataTransformer::escape_csv_field("with\"quote"), "\"with\"\"quote\"");
+        assert_eq!(
+            DataTransformer::escape_csv_field("with,comma"),
+            "\"with,comma\""
+        );
+        assert_eq!(
+            DataTransformer::escape_csv_field("with\"quote"),
+            "\"with\"\"quote\""
+        );
     }
 
     #[test]

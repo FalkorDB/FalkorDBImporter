@@ -26,7 +26,11 @@ impl JobManager {
             let mut interval = interval(Duration::from_secs(60)); // Check every minute
             loop {
                 interval.tick().await;
-                Self::cleanup_expired_jobs(&cleanup_jobs).await;
+                // Cleanup task with error handling
+                if let Err(e) = Self::cleanup_expired_jobs_with_error_handling(&cleanup_jobs).await
+                {
+                    tracing::error!("Cleanup task encountered an error: {}", e);
+                }
             }
         });
 
@@ -76,7 +80,7 @@ impl JobManager {
         let mut jobs = self.jobs.write().await;
         jobs.remove(job_id)
             .ok_or_else(|| AppError::NotFound(format!("Job not found: {}", job_id)))?;
-        
+
         tracing::info!("Deleted job: {}", job_id);
         Ok(())
     }
@@ -90,8 +94,10 @@ impl JobManager {
             .collect()
     }
 
-    /// Clean up expired jobs (called periodically)
-    async fn cleanup_expired_jobs(jobs: &Arc<RwLock<HashMap<JobId, Job>>>) {
+    /// Clean up expired jobs (called periodically) with error handling
+    async fn cleanup_expired_jobs_with_error_handling(
+        jobs: &Arc<RwLock<HashMap<JobId, Job>>>,
+    ) -> Result<(), String> {
         let mut jobs_guard = jobs.write().await;
         let expired_jobs: Vec<JobId> = jobs_guard
             .iter()
@@ -103,6 +109,8 @@ impl JobManager {
             jobs_guard.remove(&job_id);
             tracing::info!("Cleaned up expired job: {}", job_id);
         }
+
+        Ok(())
     }
 }
 
@@ -133,7 +141,7 @@ mod tests {
 
         let created_job = manager.create_job(mapping, None).await.unwrap();
         let retrieved_job = manager.get_job(&created_job.id).await.unwrap();
-        
+
         assert_eq!(created_job.id, retrieved_job.id);
     }
 
@@ -147,7 +155,7 @@ mod tests {
 
         let job = manager.create_job(mapping, None).await.unwrap();
         manager.delete_job(&job.id).await.unwrap();
-        
+
         let result = manager.get_job(&job.id).await;
         assert!(result.is_err());
     }
@@ -162,7 +170,7 @@ mod tests {
 
         manager.create_job(mapping.clone(), None).await.unwrap();
         manager.create_job(mapping, None).await.unwrap();
-        
+
         let jobs = manager.list_jobs().await;
         assert_eq!(jobs.len(), 2);
     }

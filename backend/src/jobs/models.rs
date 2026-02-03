@@ -94,12 +94,17 @@ pub struct Job {
 
 impl Job {
     /// Create a new job with a TTL in seconds
-    pub fn new(id: JobId, mapping: MappingConfig, ttl_seconds: u64, auth_token: Option<String>) -> Self {
+    pub fn new(
+        id: JobId,
+        mapping: MappingConfig,
+        ttl_seconds: u64,
+        auth_token: Option<String>,
+    ) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         Self {
             id,
             status: JobStatus::Active,
@@ -116,7 +121,7 @@ impl Job {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        
+
         now > self.expires_at
     }
 }
@@ -132,7 +137,7 @@ mod tests {
             edges: vec![],
         };
         let job = Job::new("test-job".to_string(), mapping, 3600, None);
-        
+
         assert_eq!(job.id, "test-job");
         assert!(matches!(job.status, JobStatus::Active));
         assert!(!job.is_expired());
@@ -145,7 +150,7 @@ mod tests {
             edges: vec![],
         };
         let mut job = Job::new("test-job".to_string(), mapping, 0, None);
-        
+
         // Set expiration to the past
         job.expires_at = 0;
         assert!(job.is_expired());

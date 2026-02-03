@@ -1,3 +1,3 @@
 pub mod handlers;
 
-pub use handlers::{serve_node_csv, serve_edge_csv};
+pub use handlers::{serve_edge_csv, serve_node_csv};

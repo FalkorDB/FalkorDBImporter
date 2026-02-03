@@ -46,10 +46,7 @@ pub async fn create_job(
         .create_job(request.mapping, request.auth_token)
         .await?;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(JobResponse { job }),
-    ))
+    Ok((axum::http::StatusCode::CREATED, Json(JobResponse { job })))
 }
 
 /// Get a job by ID
@@ -85,9 +82,7 @@ pub async fn get_job(
     ),
     tag = "jobs"
 )]
-pub async fn list_jobs(
-    State(job_manager): State<Arc<JobManager>>,
-) -> AppResult<impl IntoResponse> {
+pub async fn list_jobs(State(job_manager): State<Arc<JobManager>>) -> AppResult<impl IntoResponse> {
     tracing::debug!("Listing all jobs");
 
     let jobs = job_manager.list_jobs().await;
@@ -132,10 +127,13 @@ mod tests {
 
     async fn create_test_router() -> Router {
         let job_manager = Arc::new(JobManager::new(3600));
-        
+
         Router::new()
             .route("/jobs", axum::routing::post(create_job).get(list_jobs))
-            .route("/jobs/{job_id}", axum::routing::get(get_job).delete(delete_job))
+            .route(
+                "/jobs/{job_id}",
+                axum::routing::get(get_job).delete(delete_job),
+            )
             .with_state(job_manager)
     }
 
