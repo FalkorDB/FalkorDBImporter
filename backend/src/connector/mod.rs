@@ -55,7 +55,7 @@ pub async fn register_connectors(registry: &ConnectorRegistry) -> ConnectorResul
     // Register PostgreSQL connector
     registry
         .register("postgres".to_string(), |config| {
-            let mut connector = PostgresConnector::new(config)?;
+            let connector = PostgresConnector::new(config)?;
             Ok(Box::new(connector) as Box<dyn DataSourceConnector>)
         })
         .await?;

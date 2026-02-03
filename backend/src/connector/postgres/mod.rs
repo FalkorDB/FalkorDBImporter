@@ -3,8 +3,7 @@ use crate::connector::{
     DataSourceConnector, DataType, DataValue, ForeignKeyInfo, TableInfo, TableType,
 };
 use async_trait::async_trait;
-use futures::stream::BoxStream;
-use futures::StreamExt;
+use futures::stream::{BoxStream, StreamExt};
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{Column, Row, TypeInfo, ValueRef};
 
@@ -57,6 +56,7 @@ impl PostgresConnector {
     }
 
     /// Build connection string from configuration
+    /// Note: This connection string contains sensitive credentials and should never be logged
     fn build_connection_string(&self) -> String {
         let ssl_mode = if self.config.ssl {
             "require"
@@ -466,7 +466,11 @@ impl DataSourceConnector for PostgresConnector {
 
         let schema = self.get_schema();
         
-        // Simple identifier quoting helper
+        // Use schema-qualified table name with proper escaping
+        let full_table_name = format!("{}.{}", schema, table_name);
+        
+        // Note: PostgreSQL doesn't support binding table names, so we use string formatting
+        // but ensure proper quoting to prevent SQL injection
         let quote_ident = |ident: &str| format!("\"{}\"", ident.replace("\"", "\"\""));
         
         let query = format!(
@@ -495,6 +499,7 @@ impl DataSourceConnector for PostgresConnector {
             .clone();
 
         let schema = self.get_schema();
+        let table_name = table_name.to_string();
         
         // Simple identifier quoting helper
         let quote_ident = |ident: &str| format!("\"{}\"", ident.replace("\"", "\"\""));
@@ -502,24 +507,22 @@ impl DataSourceConnector for PostgresConnector {
         let query = format!(
             "SELECT * FROM {}.{}",
             quote_ident(&schema),
-            quote_ident(table_name)
+            quote_ident(&table_name)
         );
 
-        // Create a static string by leaking memory for the query
-        // This is acceptable for the streaming use case
-        let static_query: &'static str = Box::leak(query.into_boxed_str());
-        
-        // Use cursor-based streaming with fetch
-        let stream = sqlx::query(static_query)
-            .fetch(&pool)
-            .map(|result| {
-                result
-                    .map(|row| Self::pg_row_to_data_row(&row))
-                    .map_err(|e| ConnectorError::DataStreaming(format!("Stream error: {}", e)))
-            })
-            .boxed();
+        // Fetch all rows at once and convert to stream
+        // For true cursor-based streaming, we'd need async-stream or similar
+        let rows = sqlx::query(&query)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ConnectorError::DataStreaming(format!("Failed to fetch data: {}", e)))?;
 
-        Ok(stream)
+        let data_rows: Vec<DataRow> = rows.iter().map(Self::pg_row_to_data_row).collect();
+        
+        // Convert Vec to stream
+        let stream = futures::stream::iter(data_rows.into_iter().map(Ok));
+        
+        Ok(stream.boxed())
     }
 
     fn connector_type(&self) -> &str {
