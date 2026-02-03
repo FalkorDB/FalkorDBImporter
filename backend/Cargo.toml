@@ -27,6 +27,7 @@ uuid = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 hex = "0.4"
+mysql_async = "0.35"
 
 [dev-dependencies]
 mockall = { workspace = true }

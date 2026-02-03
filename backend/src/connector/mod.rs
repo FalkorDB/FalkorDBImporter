@@ -1,5 +1,6 @@
 pub mod config;
 pub mod error;
+pub mod mysql;
 pub mod pool;
 pub mod registry;
 pub mod schema;
