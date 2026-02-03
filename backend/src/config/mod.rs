@@ -103,11 +103,40 @@ mod tests {
 
     #[test]
     fn test_default_config() {
+        // Save existing environment variables that might interfere with the test
+        let env_vars = [
+            "APP_SERVER__HOST",
+            "APP_SERVER__PORT",
+            "APP_SERVER__FRONTEND_DIR",
+            "APP_FALKORDB__HOST",
+            "APP_FALKORDB__PORT",
+            "APP_LOGGING__LEVEL",
+            "RUN_MODE",
+        ];
+        let saved_values: Vec<_> = env_vars
+            .iter()
+            .map(|&var| (var, env::var(var).ok()))
+            .collect();
+
+        // Remove environment variables that could affect the test
+        for &var in &env_vars {
+            env::remove_var(var);
+        }
+
+        // Test with clean environment - should load defaults
         let config = AppConfig::load().expect("Failed to load config");
         assert_eq!(config.server.host, "0.0.0.0");
         assert_eq!(config.server.port, 3000);
         assert_eq!(config.falkordb.host, "localhost");
         assert_eq!(config.falkordb.port, 6379);
         assert_eq!(config.logging.level, "info");
+
+        // Restore original environment variables
+        for (var, value) in saved_values {
+            match value {
+                Some(val) => env::set_var(var, val),
+                None => env::remove_var(var),
+            }
+        }
     }
 }
