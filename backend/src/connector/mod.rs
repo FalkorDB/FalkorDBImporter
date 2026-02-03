@@ -10,13 +10,16 @@ use futures::stream::BoxStream;
 
 pub use config::DataSourceConfig;
 pub use error::{ConnectorError, ConnectorResult};
+#[allow(unused_imports)]
 pub use pool::ConnectionPool;
+#[allow(unused_imports)]
 pub use registry::ConnectorRegistry;
 pub use schema::TableInfo;
 pub use types::DataRow;
 
 /// Core trait that all data source connectors must implement
 #[async_trait]
+#[allow(dead_code)]
 pub trait DataSourceConnector: Send + Sync {
     /// Establish a connection to the data source
     async fn connect(&mut self) -> ConnectorResult<()>;
@@ -31,11 +34,7 @@ pub trait DataSourceConnector: Send + Sync {
     async fn get_table_schema(&self, table_name: &str) -> ConnectorResult<TableInfo>;
 
     /// Fetch a preview of sample rows from a table
-    async fn preview_data(
-        &self,
-        table_name: &str,
-        limit: usize,
-    ) -> ConnectorResult<Vec<DataRow>>;
+    async fn preview_data(&self, table_name: &str, limit: usize) -> ConnectorResult<Vec<DataRow>>;
 
     /// Stream data from a table asynchronously
     async fn stream_data(

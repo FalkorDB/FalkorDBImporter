@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Errors that can occur when working with data source connectors
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum ConnectorError {
     #[error("Connection error: {0}")]
     Connection(String),

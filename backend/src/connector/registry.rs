@@ -4,10 +4,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Factory function type for creating connectors
+#[allow(dead_code)]
 pub type ConnectorFactory =
     Arc<dyn Fn(DataSourceConfig) -> ConnectorResult<Box<dyn DataSourceConnector>> + Send + Sync>;
 
 /// Registry for managing connector implementations
+#[allow(dead_code)]
 pub struct ConnectorRegistry {
     /// Registered connector factories
     factories: Arc<RwLock<HashMap<String, ConnectorFactory>>>,
@@ -22,6 +24,7 @@ impl ConnectorRegistry {
     }
 
     /// Register a connector factory
+    #[allow(dead_code)]
     pub async fn register<F>(&self, connector_type: String, factory: F) -> ConnectorResult<()>
     where
         F: Fn(DataSourceConfig) -> ConnectorResult<Box<dyn DataSourceConnector>>
@@ -35,6 +38,7 @@ impl ConnectorRegistry {
     }
 
     /// Create a connector instance from configuration
+    #[allow(dead_code)]
     pub async fn create_connector(
         &self,
         config: DataSourceConfig,
@@ -42,31 +46,32 @@ impl ConnectorRegistry {
         let connector_type = config.connection_type().to_string();
         let factories = self.factories.read().await;
 
-        let factory = factories
-            .get(&connector_type)
-            .ok_or_else(|| {
-                ConnectorError::Registry(format!(
-                    "No connector registered for type: {}",
-                    connector_type
-                ))
-            })?;
+        let factory = factories.get(&connector_type).ok_or_else(|| {
+            ConnectorError::Registry(format!(
+                "No connector registered for type: {}",
+                connector_type
+            ))
+        })?;
 
         factory(config)
     }
 
     /// Check if a connector type is registered
+    #[allow(dead_code)]
     pub async fn is_registered(&self, connector_type: &str) -> bool {
         let factories = self.factories.read().await;
         factories.contains_key(connector_type)
     }
 
     /// Get list of registered connector types
+    #[allow(dead_code)]
     pub async fn registered_types(&self) -> Vec<String> {
         let factories = self.factories.read().await;
         factories.keys().cloned().collect()
     }
 
     /// Unregister a connector type
+    #[allow(dead_code)]
     pub async fn unregister(&self, connector_type: &str) -> ConnectorResult<()> {
         let mut factories = self.factories.write().await;
         factories.remove(connector_type);
@@ -74,6 +79,7 @@ impl ConnectorRegistry {
     }
 
     /// Clear all registered connectors
+    #[allow(dead_code)]
     pub async fn clear(&self) {
         let mut factories = self.factories.write().await;
         factories.clear();
@@ -127,7 +133,8 @@ mod tests {
         async fn stream_data(
             &self,
             _table_name: &str,
-        ) -> ConnectorResult<BoxStream<'static, ConnectorResult<crate::connector::DataRow>>> {
+        ) -> ConnectorResult<BoxStream<'static, ConnectorResult<crate::connector::DataRow>>>
+        {
             Err(ConnectorError::UnsupportedOperation("Mock".to_string()))
         }
 

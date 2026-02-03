@@ -68,6 +68,7 @@ pub enum DataValue {
 
 impl DataValue {
     /// Convert to string representation
+    #[allow(dead_code)]
     pub fn to_string_value(&self) -> String {
         match self {
             DataValue::Null => String::new(),
@@ -88,6 +89,7 @@ impl DataValue {
     }
 
     /// Check if value is null
+    #[allow(dead_code)]
     pub fn is_null(&self) -> bool {
         matches!(self, DataValue::Null)
     }
@@ -102,6 +104,7 @@ pub struct DataRow {
 
 impl DataRow {
     /// Create a new empty data row
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
@@ -109,21 +112,25 @@ impl DataRow {
     }
 
     /// Create a data row with initial values
+    #[allow(dead_code)]
     pub fn with_values(values: HashMap<String, DataValue>) -> Self {
         Self { values }
     }
 
     /// Get a value by column name
+    #[allow(dead_code)]
     pub fn get(&self, column: &str) -> Option<&DataValue> {
         self.values.get(column)
     }
 
     /// Set a value for a column
+    #[allow(dead_code)]
     pub fn set(&mut self, column: String, value: DataValue) {
         self.values.insert(column, value);
     }
 
     /// Get all column names
+    #[allow(dead_code)]
     pub fn columns(&self) -> Vec<&String> {
         self.values.keys().collect()
     }
@@ -144,7 +151,7 @@ mod tests {
         assert_eq!(DataValue::Null.to_string_value(), "");
         assert_eq!(DataValue::Boolean(true).to_string_value(), "true");
         assert_eq!(DataValue::Integer(42).to_string_value(), "42");
-        assert_eq!(DataValue::Float(3.14).to_string_value(), "3.14");
+        assert_eq!(DataValue::Float(2.5).to_string_value(), "2.5");
         assert_eq!(
             DataValue::String("hello".to_string()).to_string_value(),
             "hello"

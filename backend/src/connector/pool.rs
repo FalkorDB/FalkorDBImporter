@@ -1,10 +1,10 @@
 use crate::connector::{ConnectorError, ConnectorResult, DataSourceConnector};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 
 /// Configuration for connection pooling
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PoolConfig {
     /// Maximum number of connections in the pool
     pub max_connections: usize,
@@ -33,6 +33,7 @@ impl Default for PoolConfig {
 /// Connection pool for managing data source connections
 pub struct ConnectionPool<T: DataSourceConnector> {
     /// Pool configuration
+    #[allow(dead_code)]
     config: PoolConfig,
 
     /// Available connections
@@ -47,6 +48,7 @@ pub struct ConnectionPool<T: DataSourceConnector> {
 
 impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
     /// Create a new connection pool
+    #[allow(dead_code)]
     pub fn new<F>(config: PoolConfig, factory: F) -> Self
     where
         F: Fn() -> Result<T, ConnectorError> + Send + Sync + 'static,
@@ -61,14 +63,12 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
     }
 
     /// Get a connection from the pool
+    #[allow(dead_code)]
     pub async fn acquire(&self) -> ConnectorResult<PooledConnection<T>> {
         // Acquire a permit from the semaphore
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|e| ConnectorError::ConnectionPool(format!("Failed to acquire permit: {}", e)))?;
+        let permit = self.semaphore.clone().acquire_owned().await.map_err(|e| {
+            ConnectorError::ConnectionPool(format!("Failed to acquire permit: {}", e))
+        })?;
 
         // Try to get an existing connection
         let mut connections = self.connections.lock().await;
@@ -83,9 +83,10 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
         drop(connections); // Release the lock
 
         // Create a new connection
-        let mut connector = (self.factory)()
-            .map_err(|e| ConnectorError::ConnectionPool(format!("Failed to create connector: {}", e)))?;
-        
+        let mut connector = (self.factory)().map_err(|e| {
+            ConnectorError::ConnectionPool(format!("Failed to create connector: {}", e))
+        })?;
+
         connector.connect().await?;
 
         Ok(PooledConnection {
@@ -96,11 +97,13 @@ impl<T: DataSourceConnector + 'static> ConnectionPool<T> {
     }
 
     /// Get the current size of the pool
+    #[allow(dead_code)]
     pub async fn size(&self) -> usize {
         self.connections.lock().await.len()
     }
 
     /// Close all connections in the pool
+    #[allow(dead_code)]
     pub async fn close(&self) -> ConnectorResult<()> {
         let mut connections = self.connections.lock().await;
         for conn in connections.drain(..) {
@@ -120,6 +123,7 @@ pub struct PooledConnection<T: DataSourceConnector + 'static> {
 
 impl<T: DataSourceConnector + 'static> PooledConnection<T> {
     /// Get a reference to the underlying connector
+    #[allow(dead_code)]
     pub async fn get(&self) -> Arc<Mutex<T>> {
         self.connection.as_ref().unwrap().clone()
     }
@@ -140,7 +144,7 @@ impl<T: DataSourceConnector + 'static> Drop for PooledConnection<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connector::{DataSourceConfig, TableInfo};
+    use crate::connector::TableInfo;
     use async_trait::async_trait;
     use futures::stream::BoxStream;
 
@@ -179,7 +183,8 @@ mod tests {
         async fn stream_data(
             &self,
             _table_name: &str,
-        ) -> ConnectorResult<BoxStream<'static, ConnectorResult<crate::connector::DataRow>>> {
+        ) -> ConnectorResult<BoxStream<'static, ConnectorResult<crate::connector::DataRow>>>
+        {
             Err(ConnectorError::UnsupportedOperation("Mock".to_string()))
         }
 
@@ -202,9 +207,7 @@ mod tests {
             connection_timeout: 10,
         };
 
-        let pool = ConnectionPool::new(config, || {
-            Ok(MockConnector { connected: false })
-        });
+        let pool = ConnectionPool::new(config, || Ok(MockConnector { connected: false }));
 
         // Acquire a connection
         let conn = pool.acquire().await.unwrap();
@@ -223,9 +226,7 @@ mod tests {
             ..Default::default()
         };
 
-        let pool = ConnectionPool::new(config, || {
-            Ok(MockConnector { connected: false })
-        });
+        let pool = ConnectionPool::new(config, || Ok(MockConnector { connected: false }));
 
         let conn1 = pool.acquire().await.unwrap();
         let conn2 = pool.acquire().await.unwrap();

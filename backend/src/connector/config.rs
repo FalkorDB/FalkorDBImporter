@@ -4,6 +4,7 @@ use std::collections::HashMap;
 /// Configuration for different types of data sources
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum DataSourceConfig {
     /// PostgreSQL database configuration
     Postgres {
@@ -152,6 +153,7 @@ pub enum DataSourceConfig {
 /// File format for local files
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum FileFormat {
     #[default]
     Csv,
@@ -185,9 +187,16 @@ impl DataSourceConfig {
     }
 
     /// Validate the configuration
+    #[allow(dead_code)]
     pub fn validate(&self) -> Result<(), String> {
         match self {
-            Self::Postgres { host, port, database, username, .. } => {
+            Self::Postgres {
+                host,
+                port,
+                database,
+                username,
+                ..
+            } => {
                 if host.is_empty() {
                     return Err("Host cannot be empty".to_string());
                 }
@@ -201,7 +210,13 @@ impl DataSourceConfig {
                     return Err("Username cannot be empty".to_string());
                 }
             }
-            Self::Mysql { host, port, database, username, .. } => {
+            Self::Mysql {
+                host,
+                port,
+                database,
+                username,
+                ..
+            } => {
                 if host.is_empty() {
                     return Err("Host cannot be empty".to_string());
                 }
