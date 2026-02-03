@@ -177,6 +177,14 @@ impl MysqlConnector {
             }
         }
     }
+
+    /// Escape an identifier (table name, column name, database name) for use in SQL queries
+    /// This prevents SQL injection by escaping backticks
+    #[allow(dead_code)]
+    fn escape_identifier(&self, identifier: &str) -> String {
+        // Replace backticks with double backticks for proper escaping
+        identifier.replace('`', "``")
+    }
 }
 
 #[async_trait]
@@ -216,17 +224,18 @@ impl DataSourceConnector for MysqlConnector {
         let mut conn = self.get_conn().await?;
 
         // Query to get all tables in the database
-        let query = format!(
-            "SELECT TABLE_NAME, TABLE_TYPE, TABLE_ROWS 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = '{}' 
-             ORDER BY TABLE_NAME",
-            self.config.database
-        );
+        // Using parameterized query to prevent SQL injection
+        let query = "SELECT TABLE_NAME, TABLE_TYPE, TABLE_ROWS 
+                     FROM information_schema.TABLES 
+                     WHERE TABLE_SCHEMA = ? 
+                     ORDER BY TABLE_NAME";
 
-        let rows: Vec<Row> = conn.query(&query).await.map_err(|e| {
-            ConnectorError::SchemaDiscovery(format!("Failed to query tables: {}", e))
-        })?;
+        let rows: Vec<Row> = conn
+            .exec(query, (&self.config.database,))
+            .await
+            .map_err(|e| {
+                ConnectorError::SchemaDiscovery(format!("Failed to query tables: {}", e))
+            })?;
 
         let mut tables = Vec::new();
         for row in rows {
@@ -263,16 +272,17 @@ impl DataSourceConnector for MysqlConnector {
         let mut conn = self.get_conn().await?;
 
         // Verify table exists and get metadata
-        let query = format!(
-            "SELECT TABLE_TYPE, TABLE_ROWS 
-             FROM information_schema.TABLES 
-             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}'",
-            self.config.database, table_name
-        );
+        // Using parameterized query to prevent SQL injection
+        let query = "SELECT TABLE_TYPE, TABLE_ROWS 
+                     FROM information_schema.TABLES 
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
 
-        let row: Option<Row> = conn.query_first(&query).await.map_err(|e| {
-            ConnectorError::SchemaDiscovery(format!("Failed to query table info: {}", e))
-        })?;
+        let row: Option<Row> = conn
+            .exec_first(query, (&self.config.database, table_name))
+            .await
+            .map_err(|e| {
+                ConnectorError::SchemaDiscovery(format!("Failed to query table info: {}", e))
+            })?;
 
         let (table_type, row_count) = match row {
             Some(r) => {
@@ -311,13 +321,16 @@ impl DataSourceConnector for MysqlConnector {
     async fn preview_data(&self, table_name: &str, limit: usize) -> ConnectorResult<Vec<DataRow>> {
         let mut conn = self.get_conn().await?;
 
+        // Using parameterized query with identifier escaping
+        // First, we need to properly escape the identifiers
         let query = format!(
-            "SELECT * FROM `{}`.`{}` LIMIT {}",
-            self.config.database, table_name, limit
+            "SELECT * FROM `{}`.`{}` LIMIT ?",
+            self.escape_identifier(&self.config.database),
+            self.escape_identifier(table_name)
         );
 
         let rows: Vec<Row> = conn
-            .query(&query)
+            .exec(&query, (limit,))
             .await
             .map_err(|e| ConnectorError::DataStreaming(format!("Failed to preview data: {}", e)))?;
 
@@ -392,19 +405,19 @@ impl MysqlConnector {
         conn: &mut Conn,
         table_name: &str,
     ) -> ConnectorResult<Vec<ColumnInfo>> {
-        let query = format!(
-            "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, 
-                    COLUMN_DEFAULT, CHARACTER_MAXIMUM_LENGTH, 
-                    NUMERIC_PRECISION, NUMERIC_SCALE
-             FROM information_schema.COLUMNS 
-             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}' 
-             ORDER BY ORDINAL_POSITION",
-            self.config.database, table_name
-        );
+        let query = "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, 
+                            COLUMN_DEFAULT, CHARACTER_MAXIMUM_LENGTH, 
+                            NUMERIC_PRECISION, NUMERIC_SCALE
+                     FROM information_schema.COLUMNS 
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+                     ORDER BY ORDINAL_POSITION";
 
-        let rows: Vec<Row> = conn.query(&query).await.map_err(|e| {
-            ConnectorError::SchemaDiscovery(format!("Failed to query columns: {}", e))
-        })?;
+        let rows: Vec<Row> = conn
+            .exec(query, (&self.config.database, table_name))
+            .await
+            .map_err(|e| {
+                ConnectorError::SchemaDiscovery(format!("Failed to query columns: {}", e))
+            })?;
 
         let mut columns = Vec::new();
         for row in rows {
@@ -443,18 +456,18 @@ impl MysqlConnector {
         conn: &mut Conn,
         table_name: &str,
     ) -> ConnectorResult<Vec<String>> {
-        let query = format!(
-            "SELECT COLUMN_NAME 
-             FROM information_schema.KEY_COLUMN_USAGE 
-             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}' 
-               AND CONSTRAINT_NAME = 'PRIMARY' 
-             ORDER BY ORDINAL_POSITION",
-            self.config.database, table_name
-        );
+        let query = "SELECT COLUMN_NAME 
+                     FROM information_schema.KEY_COLUMN_USAGE 
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+                       AND CONSTRAINT_NAME = 'PRIMARY' 
+                     ORDER BY ORDINAL_POSITION";
 
-        let rows: Vec<Row> = conn.query(&query).await.map_err(|e| {
-            ConnectorError::SchemaDiscovery(format!("Failed to query primary keys: {}", e))
-        })?;
+        let rows: Vec<Row> = conn
+            .exec(query, (&self.config.database, table_name))
+            .await
+            .map_err(|e| {
+                ConnectorError::SchemaDiscovery(format!("Failed to query primary keys: {}", e))
+            })?;
 
         let primary_keys = rows
             .into_iter()
@@ -471,19 +484,19 @@ impl MysqlConnector {
         conn: &mut Conn,
         table_name: &str,
     ) -> ConnectorResult<Vec<ForeignKeyInfo>> {
-        let query = format!(
-            "SELECT CONSTRAINT_NAME, COLUMN_NAME, 
-                    REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
-             FROM information_schema.KEY_COLUMN_USAGE 
-             WHERE TABLE_SCHEMA = '{}' AND TABLE_NAME = '{}' 
-               AND REFERENCED_TABLE_NAME IS NOT NULL 
-             ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION",
-            self.config.database, table_name
-        );
+        let query = "SELECT CONSTRAINT_NAME, COLUMN_NAME, 
+                            REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+                     FROM information_schema.KEY_COLUMN_USAGE 
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? 
+                       AND REFERENCED_TABLE_NAME IS NOT NULL 
+                     ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION";
 
-        let rows: Vec<Row> = conn.query(&query).await.map_err(|e| {
-            ConnectorError::SchemaDiscovery(format!("Failed to query foreign keys: {}", e))
-        })?;
+        let rows: Vec<Row> = conn
+            .exec(query, (&self.config.database, table_name))
+            .await
+            .map_err(|e| {
+                ConnectorError::SchemaDiscovery(format!("Failed to query foreign keys: {}", e))
+            })?;
 
         let mut fk_map: HashMap<String, ForeignKeyInfo> = HashMap::new();
 
