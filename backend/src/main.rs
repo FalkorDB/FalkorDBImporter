@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod connector;
 mod error;
 mod jobs;
 mod shutdown;
