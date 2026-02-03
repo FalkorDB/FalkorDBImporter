@@ -67,11 +67,11 @@ pub fn create_router(job_manager: Arc<JobManager>) -> Router {
             axum::routing::get(jobs::get_job).delete(jobs::delete_job),
         )
         .route(
-            "/data/{job_id}/nodes/{label}.csv",
+            "/data/{job_id}/nodes/{label}",
             axum::routing::get(csv::serve_node_csv),
         )
         .route(
-            "/data/{job_id}/edges/{type}.csv",
+            "/data/{job_id}/edges/{edge_type}",
             axum::routing::get(csv::serve_edge_csv),
         )
         .with_state(job_manager)

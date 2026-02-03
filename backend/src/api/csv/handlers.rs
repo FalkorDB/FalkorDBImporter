@@ -1,7 +1,7 @@
 use crate::error::{AppError, AppResult};
 use crate::jobs::{JobManager, NodeMapping, EdgeMapping, ColumnMapping};
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -90,10 +90,34 @@ impl DataTransformer {
     }
 }
 
+/// Validate authentication token for a job
+fn validate_auth(
+    job: &crate::jobs::Job,
+    request: &Request,
+) -> AppResult<()> {
+    // If job has an auth token, validate it
+    if let Some(expected_token) = &job.auth_token {
+        let auth_header = request
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| AppError::BadRequest("Missing Authorization header".to_string()))?;
+
+        let provided_token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| AppError::BadRequest("Invalid Authorization header format".to_string()))?;
+
+        if provided_token != expected_token {
+            return Err(AppError::BadRequest("Invalid authentication token".to_string()));
+        }
+    }
+    Ok(())
+}
+
 /// Serve CSV data for nodes
 #[utoipa::path(
     get,
-    path = "/data/{job_id}/nodes/{label}.csv",
+    path = "/data/{job_id}/nodes/{label}",
     params(
         ("job_id" = String, Path, description = "Job ID"),
         ("label" = String, Path, description = "Node label")
@@ -108,11 +132,15 @@ impl DataTransformer {
 pub async fn serve_node_csv(
     State(job_manager): State<Arc<JobManager>>,
     Path((job_id, label)): Path<(String, String)>,
+    request: Request,
 ) -> AppResult<Response> {
     tracing::debug!("Serving node CSV for job: {}, label: {}", job_id, label);
 
     // Get the job
     let job = job_manager.get_job(&job_id).await?;
+
+    // Validate authentication
+    validate_auth(&job, &request)?;
 
     // Find the node mapping
     let node_mapping = job
@@ -137,10 +165,10 @@ pub async fn serve_node_csv(
 /// Serve CSV data for edges
 #[utoipa::path(
     get,
-    path = "/data/{job_id}/edges/{type}.csv",
+    path = "/data/{job_id}/edges/{edge_type}",
     params(
         ("job_id" = String, Path, description = "Job ID"),
-        ("type" = String, Path, description = "Edge type")
+        ("edge_type" = String, Path, description = "Edge type")
     ),
     responses(
         (status = 200, description = "CSV data stream", content_type = "text/csv"),
@@ -152,11 +180,15 @@ pub async fn serve_node_csv(
 pub async fn serve_edge_csv(
     State(job_manager): State<Arc<JobManager>>,
     Path((job_id, edge_type)): Path<(String, String)>,
+    request: Request,
 ) -> AppResult<Response> {
     tracing::debug!("Serving edge CSV for job: {}, type: {}", job_id, edge_type);
 
     // Get the job
     let job = job_manager.get_job(&job_id).await?;
+
+    // Validate authentication
+    validate_auth(&job, &request)?;
 
     // Find the edge mapping
     let edge_mapping = job
@@ -215,7 +247,7 @@ fn generate_edge_csv(edge_mapping: &EdgeMapping) -> AppResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jobs::models::{ColumnMapping, NodeMapping};
+    use crate::jobs::models::{ColumnMapping, NodeMapping, EdgeMapping};
     use std::collections::HashMap;
 
     #[test]
