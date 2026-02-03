@@ -204,6 +204,7 @@ See `.github/workflows/rust-ci.yml` for details.
 - `RUST_LOG`: Log level (default: `info`)
 - `FALKORDB_HOST`: FalkorDB host (default: `localhost`)
 - `FALKORDB_PORT`: FalkorDB port (default: `6379`)
+- `FRONTEND_DIR`: Path to frontend build directory (default: `../frontend/dist`)
 
 ### Frontend
 
