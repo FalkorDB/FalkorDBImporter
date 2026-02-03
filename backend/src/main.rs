@@ -1,57 +1,66 @@
-use axum::{routing::get, Router};
-use std::env;
+mod api;
+mod config;
+mod error;
+mod shutdown;
+
+use axum::Router;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use config::AppConfig;
+use error::AppResult;
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+async fn main() -> AppResult<()> {
+    // Load configuration
+    let config = AppConfig::load()?;
+
+    // Initialize tracing with configured log level
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| config.logging.level.clone().into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting FalkorDB Importer Backend");
+    tracing::info!(
+        "Starting FalkorDB Importer Backend v{}",
+        env!("CARGO_PKG_VERSION")
+    );
+    tracing::info!("Configuration loaded: {:?}", config);
 
     // Set up static file serving with SPA fallback
-    let frontend_dir = env::var("FRONTEND_DIR").unwrap_or_else(|_| "../frontend/dist".to_string());
-    tracing::info!("Serving frontend from: {}", frontend_dir);
+    tracing::info!("Serving frontend from: {}", config.server.frontend_dir);
 
-    let index_path = format!("{}/index.html", frontend_dir);
-    let serve_dir = ServeDir::new(&frontend_dir).not_found_service(ServeFile::new(&index_path));
+    let index_path = format!("{}/index.html", config.server.frontend_dir);
+    let serve_dir =
+        ServeDir::new(&config.server.frontend_dir).not_found_service(ServeFile::new(&index_path));
 
-    // Build router
+    // Build API router
+    let api_router = api::create_router();
+
+    // Build main application router
     let app = Router::new()
-        .route("/health", get(health_check))
-        // Future API routes should be nested under /api
+        .nest("/api", api_router)
         .fallback_service(serve_dir)
+        .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive());
 
-    // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::info!("Listening on {}", addr);
+    // Start server with graceful shutdown
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
+    tracing::info!("Listening on http://{}", addr);
+    tracing::info!("API documentation available at http://{}/swagger-ui/", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown::shutdown_signal())
+        .await?;
+
+    tracing::info!("Server shutdown complete");
 
     Ok(())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_health_check() {
-        let response = health_check().await;
-        assert_eq!(response, "OK");
-    }
 }
