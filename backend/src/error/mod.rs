@@ -27,13 +27,11 @@ pub enum AppError {
 #[derive(Serialize)]
 struct ErrorResponse {
     error: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match &self {
+        let (status, _error_message) = match &self {
             AppError::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
@@ -42,7 +40,6 @@ impl IntoResponse for AppError {
 
         let body = Json(ErrorResponse {
             error: self.to_string(),
-            details: Some(error_message),
         });
 
         (status, body).into_response()

@@ -53,7 +53,10 @@ async fn main() -> AppResult<()> {
     // Start server with graceful shutdown
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
     tracing::info!("Listening on http://{}", addr);
-    tracing::info!("API documentation available at http://{}/swagger-ui/", addr);
+    tracing::info!(
+        "API documentation available at http://{}/api/swagger-ui/",
+        addr
+    );
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app)
