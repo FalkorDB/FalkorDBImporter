@@ -247,7 +247,7 @@ fn generate_edge_csv(edge_mapping: &EdgeMapping) -> AppResult<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jobs::models::{ColumnMapping, NodeMapping, EdgeMapping};
+    use crate::jobs::models::{ColumnMapping, NodeMapping};
     use std::collections::HashMap;
 
     #[test]
