@@ -1,6 +1,7 @@
 use axum::{routing::get, Router};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
+use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -15,9 +16,15 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Starting FalkorDB Importer Backend");
 
+    // Set up static file serving with SPA fallback
+    let serve_dir = ServeDir::new("../frontend/dist")
+        .not_found_service(ServeFile::new("../frontend/dist/index.html"));
+
     // Build router
     let app = Router::new()
         .route("/health", get(health_check))
+        // Future API routes should be nested under /api
+        .fallback_service(serve_dir)
         .layer(CorsLayer::permissive());
 
     // Start server

@@ -35,24 +35,42 @@ cd FalkorDBImporter
 docker-compose up -d falkordb
 ```
 
-### 3. Run the backend
+### 3. Build and run with a single server
+
+The backend now serves both the API and the frontend static files.
 
 ```bash
+# Build the frontend
+cd frontend
+npm install
+npm run build
+cd ..
+
+# Run the backend (serves both API and frontend)
 cd backend
 cargo run
 ```
 
-The backend will start on `http://localhost:3000`.
+The application will be available at `http://localhost:3000`:
+- Frontend: `http://localhost:3000`
+- Health check: `http://localhost:3000/health`
+- Future API routes: `http://localhost:3000/api/*`
 
-### 4. Run the frontend
+### 4. (Alternative) Development mode with separate servers
+
+For frontend development with hot-reload:
 
 ```bash
+# Terminal 1: Run the backend
+cd backend
+cargo run
+
+# Terminal 2: Run the frontend dev server
 cd frontend
-npm install
 npm run dev
 ```
 
-The frontend will start on `http://localhost:5173`.
+In this mode, the frontend will be available at `http://localhost:5173` with hot-reload enabled.
 
 ## Development Commands
 
@@ -108,6 +126,23 @@ npm run build
 # Watch for changes
 npm run watch
 ```
+
+## Static File Serving
+
+The Rust backend serves the frontend static files from `../frontend/dist`. This allows running a single server for both the API and the frontend.
+
+**Key features:**
+- API routes (like `/health` and future `/api/*` routes) are served first
+- Static files from the frontend build are served for other requests
+- SPA fallback: Unknown routes serve `index.html` to support client-side routing
+
+**To rebuild the frontend:**
+```bash
+cd frontend
+npm run build
+```
+
+The backend will automatically serve the updated files on the next request.
 
 ## Docker Development
 
