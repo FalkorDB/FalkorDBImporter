@@ -1,8 +1,5 @@
-# FalkorDBImporter
-FalkorDB Importer
-
-
 # FalkorDB Data Importer
+
 ## Project Plan & Task Breakdown
 
 **February 2026**
@@ -12,6 +9,26 @@ FalkorDB Importer
 ## 1. Executive Summary
 
 This document outlines the project plan for building a Data Importer service for FalkorDB. The service will provide a high-performance, scalable tool for importing data from multiple sources into FalkorDB, with visual data modeling and mapping capabilities.
+
+**Key Design Decisions:**
+- **Rust Backend** for maximum performance, memory safety, and scalability
+- **Multi-Database Connectivity** supporting enterprise data sources
+- **Pluggable Connector Architecture** for extensibility
+
+The FalkorDB Data Importer will enable users to:
+
+- Connect to and import from relational databases (PostgreSQL, MySQL, SQL Server, Oracle)
+- Connect to cloud data warehouses (Snowflake, Databricks, BigQuery)
+- Import from cloud storage (AWS S3, Azure Blob/Data Lake, Google Cloud Storage)# FalkorDB Data Importer
+## Project Plan & Task Breakdown
+
+**February 2026**
+
+---
+
+## 1. Executive Summary
+
+This document outlines the project plan for building a Data Importer service for FalkorDB, inspired by Neo4j's Aura Import service. The service will provide a high-performance, scalable tool for importing data from multiple sources into FalkorDB, with visual data modeling and mapping capabilities.
 
 **Key Design Decisions:**
 - **Rust Backend** for maximum performance, memory safety, and scalability
@@ -62,6 +79,8 @@ The FalkorDB Data Importer will enable users to:
 
 ### 2.3 Technical Architecture
 
+The architecture leverages FalkorDB's native `LOAD CSV` capability for optimal performance. The Rust server acts as a data bridge, fetching data from external sources and exposing it as CSV via HTTP endpoints that FalkorDB can consume directly.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Frontend (React/TypeScript)                   │
@@ -71,29 +90,74 @@ The FalkorDB Data Importer will enable users to:
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
-                            REST/WebSocket API
+                            REST API (config, schema, status)
                                    │
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Backend API (Rust/Axum)                         │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    Connection Manager                         │   │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ │   │
-│  │  │Postgres │ │ MySQL   │ │Snowflake│ │  S3     │ │  CSV    │ │   │
-│  │  │Connector│ │Connector│ │Connector│ │Connector│ │ Parser  │ │   │
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘ │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  Schema      │  Cypher      │  Import       │  Config        │   │
-│  │  Discovery   │  Generator   │  Engine       │  Manager       │   │
-│  └──────────────────────────────────────────────────────────────┘   │
+│                      Rust Backend (Axum)                             │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │                    Data Source Connectors                       │ │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │ │
+│  │  │Postgres │ │ MySQL   │ │Snowflake│ │  S3     │ │  File   │  │ │
+│  │  │Connector│ │Connector│ │Connector│ │Connector│ │ Upload  │  │ │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                │                                     │
+│                         Data Extraction                              │
+│                                │                                     │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │              CSV HTTP Endpoint Server                           │ │
+│  │                                                                  │ │
+│  │   GET /data/{job_id}/nodes/{label}.csv                          │ │
+│  │   GET /data/{job_id}/edges/{type}.csv                           │ │
+│  │                                                                  │ │
+│  │   - Streams data as CSV with proper headers                     │ │
+│  │   - Applies column mappings and transformations                 │ │
+│  │   - Handles pagination for large datasets                       │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │              Cypher Query Generator                             │ │
+│  │                                                                  │ │
+│  │   Generates LOAD CSV queries pointing to HTTP endpoints:        │ │
+│  │                                                                  │ │
+│  │   LOAD CSV WITH HEADERS FROM 'http://server/data/123/nodes/     │ │
+│  │     Person.csv' AS row                                          │ │
+│  │   MERGE (p:Person {id: row.id})                                 │ │
+│  │   SET p.name = row.name, p.age = toInteger(row.age)             │ │
+│  └────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
-                              FalkorDB Client
+                          LOAD CSV via HTTP
                                    │
                          ┌─────────────────────┐
                          │     FalkorDB        │
+                         │                     │
+                         │  LOAD CSV FROM      │
+                         │  'http://...'       │
                          └─────────────────────┘
 ```
+
+### 2.4 Import Flow
+
+1. **User configures import** → Connects to source, maps columns to graph model
+2. **User triggers import** → Backend creates a job with unique ID
+3. **Backend prepares data** → Extracts data from source, applies transformations
+4. **Backend exposes CSV endpoints** → `http://server/data/{job_id}/nodes/Person.csv`
+5. **Backend generates Cypher** → `LOAD CSV WITH HEADERS FROM 'http://...' AS row MERGE ...`
+6. **Backend executes Cypher on FalkorDB** → FalkorDB fetches CSV via HTTP and loads data
+7. **Progress tracking** → Backend monitors query execution, reports to frontend
+
+### 2.5 Why This Architecture?
+
+| Benefit | Description |
+|---------|-------------|
+| **Leverages FalkorDB's optimized LOAD CSV** | Native bulk loading is faster than individual inserts |
+| **Lower memory on Rust server** | Streams data on-demand rather than holding in memory |
+| **Simpler Rust code** | No need for FalkorDB client bindings; just HTTP + SQL clients |
+| **Scalable** | CSV endpoints can be cached, load-balanced, or served from CDN |
+| **Debuggable** | CSV files can be inspected directly via browser |
+| **Supports both local and cloud** | Same pattern works for FalkorDB Cloud (HTTPS) and local (HTTP) |
 
 ### 2.4 Why Rust for the Backend?
 
@@ -133,26 +197,36 @@ The FalkorDB Data Importer will enable users to:
 13. Implement graceful shutdown handling
 14. Set up OpenAPI documentation (utoipa)
 
-### 3.3 Connector Trait Architecture
+### 3.3 CSV HTTP Endpoint Server
 
-15. Define `DataSourceConnector` trait with async methods:
+15. Create job management system (create job, track status, cleanup)
+16. Implement CSV streaming endpoint: `GET /data/{job_id}/nodes/{label}.csv`
+17. Implement CSV streaming endpoint: `GET /data/{job_id}/edges/{type}.csv`
+18. Add CSV header generation from mapping configuration
+19. Implement data transformation pipeline (type conversion, trimming, etc.)
+20. Add streaming response with proper `Content-Type: text/csv` headers
+21. Implement job expiration and cleanup (TTL-based)
+22. Add authentication/token validation for CSV endpoints
+
+### 3.4 Connector Trait Architecture
+
+23. Define `DataSourceConnector` trait with async methods:
     - `connect()` - Establish connection
     - `test_connection()` - Validate credentials
     - `discover_schema()` - List tables/collections
     - `get_table_schema()` - Get columns and types
     - `preview_data()` - Fetch sample rows
-    - `stream_data()` - Async data streaming
-16. Define `DataSourceConfig` enum for connection parameters
-17. Create connector registry for dynamic connector loading
-18. Implement connection pooling abstraction
+    - `stream_data()` - Async data streaming iterator
+24. Define `DataSourceConfig` enum for connection parameters
+25. Create connector registry for dynamic connector loading
+26. Implement connection pooling abstraction
 
-### 3.4 FalkorDB Integration
+### 3.5 FalkorDB Query Execution
 
-19. Integrate FalkorDB Rust client (or create bindings)
-20. Implement connection configuration and testing
-21. Create Cypher query executor with parameterized queries
-22. Implement batch transaction support
-23. Add connection pooling for FalkorDB
+27. Implement FalkorDB connection via Redis protocol (redis crate)
+28. Create Cypher query executor using GRAPH.QUERY command
+29. Add query result parsing
+30. Implement connection testing for FalkorDB target
 
 ---
 
@@ -373,56 +447,81 @@ The FalkorDB Data Importer will enable users to:
 
 ---
 
-## 8. Phase 6: Import Engine (Rust)
+## 8. Phase 6: Import Engine (LOAD CSV Based)
 
-**Estimated Duration: 5-6 weeks**
+**Estimated Duration: 4-5 weeks**
 
-### 8.1 Cypher Query Generation
+### 8.1 Cypher LOAD CSV Query Generation
 
 110. Build Cypher query generator from mapping configuration
-111. Generate MERGE statements for nodes with ON CREATE/ON MATCH
-112. Generate MERGE statements for relationships
-113. Implement parameterized queries with UNWIND for batch processing
+111. Generate `LOAD CSV WITH HEADERS FROM` statements with HTTP URLs
+112. Generate node creation queries with MERGE/CREATE:
+     ```cypher
+     LOAD CSV WITH HEADERS FROM 'http://server/data/{job}/nodes/Person.csv' AS row
+     MERGE (p:Person {id: row.id})
+     SET p.name = row.name, p.age = toInteger(row.age)
+     ```
+113. Generate relationship creation queries:
+     ```cypher
+     LOAD CSV WITH HEADERS FROM 'http://server/data/{job}/edges/ACTED_IN.csv' AS row
+     MATCH (a:Person {id: row.from_id})
+     MATCH (m:Movie {id: row.to_id})
+     MERGE (a)-[r:ACTED_IN]->(m)
+     SET r.role = row.role
+     ```
 114. Add query preview with syntax highlighting
 115. Support CREATE vs MERGE mode selection
-116. Generate optimized queries for large batches
+116. Handle type conversions in Cypher (toInteger, toFloat, toBoolean, date)
 
-### 8.2 Parallel Import Pipeline
+### 8.2 CSV Data Preparation Pipeline
 
-117. Implement async data streaming from sources (Tokio streams)
-118. Create parallel worker pool for import execution
-119. Implement backpressure handling for memory management
-120. Add configurable parallelism (worker count, batch size)
-121. Create data transformation pipeline
-122. Implement buffered batching for optimal throughput
+117. Implement async data extraction from source connectors
+118. Create transformation pipeline:
+    - Column selection and renaming
+    - Type conversion (dates, numbers, booleans)
+    - Null handling (skip, default value)
+    - String manipulation (trim, case conversion)
+119. Generate separate CSV streams for each node label
+120. Generate separate CSV streams for each relationship type
+121. Add computed columns for relationship from/to IDs
+122. Implement CSV escaping and quoting (RFC 4180 compliant)
 
-### 8.3 Import Execution
+### 8.3 Import Execution Orchestration
 
-123. Implement batch import with configurable batch size
-124. Add transaction management (commit per batch)
-125. Create progress tracking with estimated time remaining
-126. Implement WebSocket-based real-time progress updates
-127. Add import cancellation with graceful cleanup
-128. Implement pause/resume capability with checkpointing
-129. Add dry-run mode for validation without import
+123. Create import job state machine (pending → preparing → importing → complete/failed)
+124. Execute index/constraint creation queries first
+125. Execute node LOAD CSV queries (in dependency order)
+126. Execute relationship LOAD CSV queries (after nodes exist)
+127. Implement query execution via FalkorDB GRAPH.QUERY command
+128. Parse query results and statistics (nodes created, relationships created)
 
-### 8.4 Error Handling
+### 8.4 Progress Tracking
 
-130. Implement error collection during import
-131. Add error categorization (data type, constraint violation, connection)
-132. Create error report with problematic rows and source context
-133. Implement skip-on-error option with threshold
-134. Add error export to CSV
-135. Implement retry logic for transient failures
-136. Add dead letter queue for failed records
+129. Track job progress: data preparation %, nodes loaded %, edges loaded %
+130. Implement WebSocket endpoint for real-time progress updates
+131. Calculate estimated time remaining based on throughput
+132. Add import cancellation with cleanup
+133. Implement job history and status persistence
 
-### 8.5 Indexes and Constraints
+### 8.5 Error Handling
 
-137. Implement index creation UI for node properties
-138. Add unique constraint configuration
-139. Generate Cypher for index/constraint creation
-140. Execute index creation before data import
-141. Support full-text index configuration
+134. Capture and categorize errors (connection, data type, constraint violation)
+135. Implement skip-on-error mode with error threshold
+136. Create error report with failed rows and reasons
+137. Add error export to CSV
+138. Implement retry logic for transient failures
+
+### 8.6 Indexes and Constraints
+
+139. Implement index creation UI for node properties
+140. Add unique constraint configuration
+141. Generate Cypher for index/constraint creation:
+     ```cypher
+     CREATE INDEX FOR (p:Person) ON (p.id)
+     CREATE CONSTRAINT FOR (p:Person) REQUIRE p.id IS UNIQUE
+     ```
+142. Execute index creation before data import
+143. Support full-text index configuration
 
 ---
 
@@ -705,25 +804,25 @@ The following JSON schema defines the structure for import configurations:
 
 | Phase | Duration | Key Deliverables |
 |-------|----------|------------------|
-| Phase 1: Foundation | 4-5 weeks | Rust backend, Axum API, connector traits |
+| Phase 1: Foundation | 4-5 weeks | Rust backend, CSV HTTP endpoints, connector traits |
 | Phase 2: Data Source Connectors | 5-6 weeks | All database and storage connectors |
 | Phase 3: Frontend & Source UI | 4-5 weeks | Connection UI, schema browser, file upload |
 | Phase 4: Visual Modeling | 4-5 weeks | Graph canvas, node/rel configuration |
 | Phase 5: Data Mapping | 4-5 weeks | Mapping UI, transformations, filtering |
-| Phase 6: Import Engine | 5-6 weeks | Cypher generation, parallel import, error handling |
+| Phase 6: Import Engine | 4-5 weeks | LOAD CSV generation, execution, progress tracking |
 | Phase 7: Configuration | 2-3 weeks | Save/load configs, templates |
 | Phase 8: Polish & Testing | 3-4 weeks | UX, documentation, testing |
 
-**Total Estimated Duration: 32-39 weeks (approximately 8-10 months)**
+**Total Estimated Duration: 31-38 weeks (approximately 7-9 months)**
 
 ---
 
 ## 13. Success Metrics
 
-- Import 10M+ rows from PostgreSQL in under 10 minutes
+- Import 10M+ rows from PostgreSQL in under 10 minutes using LOAD CSV
 - Support concurrent connections to 5+ different source types
-- Parallel import with 4+ workers for maximum throughput
-- Memory usage under 2GB for 1M row imports
+- CSV endpoint response time under 50ms for first byte (streaming)
+- Memory usage under 500MB for 10M row imports (streaming architecture)
 - Error rate less than 0.1% on well-formed data
 - API response time under 100ms for schema discovery
 - WebSocket progress updates with <500ms latency
@@ -856,21 +955,122 @@ pub enum DataType {
 
 ---
 
-## 16. Risk Mitigation
+## 16. Example Generated LOAD CSV Queries
+
+The import engine generates Cypher queries that use FalkorDB's `LOAD CSV` to fetch data from the Rust server's HTTP endpoints.
+
+### 16.1 Node Import Example
+
+**CSV Endpoint:** `GET http://importer:8080/data/job-123/nodes/Person.csv`
+
+```csv
+id,name,age,email
+p001,Alice Smith,32,alice@example.com
+p002,Bob Jones,28,bob@example.com
+p003,Carol White,45,carol@example.com
+```
+
+**Generated Cypher:**
+
+```cypher
+// Create index first for fast lookups
+CREATE INDEX FOR (p:Person) ON (p.id)
+```
+
+```cypher
+// Load nodes
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/nodes/Person.csv' AS row
+MERGE (p:Person {id: row.id})
+SET p.name = row.name,
+    p.age = toInteger(row.age),
+    p.email = row.email
+```
+
+### 16.2 Relationship Import Example
+
+**CSV Endpoint:** `GET http://importer:8080/data/job-123/edges/FOLLOWS.csv`
+
+```csv
+from_id,to_id,since,weight
+p001,p002,2020-01-15,0.8
+p002,p003,2021-06-20,0.5
+p001,p003,2019-03-10,0.9
+```
+
+**Generated Cypher:**
+
+```cypher
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/edges/FOLLOWS.csv' AS row
+MATCH (a:Person {id: row.from_id})
+MATCH (b:Person {id: row.to_id})
+MERGE (a)-[r:FOLLOWS]->(b)
+SET r.since = date(row.since),
+    r.weight = toFloat(row.weight)
+```
+
+### 16.3 Full Import Sequence
+
+For a complete import job, the engine generates and executes queries in this order:
+
+```cypher
+// 1. Create indexes and constraints
+CREATE INDEX FOR (p:Person) ON (p.id)
+CREATE INDEX FOR (m:Movie) ON (m.id)
+CREATE CONSTRAINT FOR (p:Person) REQUIRE p.id IS UNIQUE
+
+// 2. Load all node types
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/nodes/Person.csv' AS row
+MERGE (p:Person {id: row.id})
+SET p.name = row.name, p.age = toInteger(row.age)
+
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/nodes/Movie.csv' AS row
+MERGE (m:Movie {id: row.id})
+SET m.title = row.title, m.year = toInteger(row.year)
+
+// 3. Load all relationship types (after nodes exist)
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/edges/ACTED_IN.csv' AS row
+MATCH (p:Person {id: row.person_id})
+MATCH (m:Movie {id: row.movie_id})
+MERGE (p)-[r:ACTED_IN]->(m)
+SET r.role = row.role
+
+LOAD CSV WITH HEADERS FROM 'http://importer:8080/data/job-123/edges/DIRECTED.csv' AS row
+MATCH (p:Person {id: row.person_id})
+MATCH (m:Movie {id: row.movie_id})
+MERGE (p)-[r:DIRECTED]->(m)
+```
+
+### 16.4 Type Conversion Functions
+
+FalkorDB supports these type conversions in LOAD CSV queries:
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `toInteger(x)` | Convert to integer | `toInteger(row.age)` |
+| `toFloat(x)` | Convert to float | `toFloat(row.price)` |
+| `toBoolean(x)` | Convert to boolean | `toBoolean(row.active)` |
+| `date(x)` | Parse ISO date | `date(row.birth_date)` |
+| `datetime(x)` | Parse ISO datetime | `datetime(row.created_at)` |
+| `split(x, delim)` | Split to array | `split(row.tags, ',')` |
+
+---
+
+## 17. Risk Mitigation
 
 | Risk | Mitigation |
 |------|------------|
 | Connector complexity | Start with PostgreSQL and CSV; add others incrementally |
-| Large dataset performance | Implement streaming, backpressure, parallel workers |
+| Large dataset performance | Streaming CSV endpoints, FalkorDB's optimized LOAD CSV |
 | Cloud credential security | Encrypt at rest, never log credentials, short-lived tokens |
 | Database driver compatibility | Extensive testing matrix; fallback to ODBC |
-| Memory exhaustion | Streaming architecture, configurable batch sizes |
-| Network failures | Retry logic, checkpoint/resume for long imports |
-| Schema changes | Versioned config format with migration support |
+| Memory exhaustion | Streaming architecture - data flows through, not stored |
+| Network failures | Retry logic, job checkpointing for resume |
+| CSV endpoint availability | Job TTL with cleanup; token-based access control |
+| FalkorDB connectivity | Connection testing before import; clear error messages |
 
 ---
 
-## 17. Future Enhancements (Post-MVP)
+## 18. Future Enhancements (Post-MVP)
 
 - Scheduled/recurring imports with cron expressions
 - Incremental import (CDC - Change Data Capture)
@@ -883,3 +1083,4 @@ pub enum DataType {
 - Multi-graph target support
 - Export from FalkorDB to other systems
 - Kubernetes operator for managed deployments
+- Direct S3/GCS URLs for LOAD CSV (when FalkorDB supports it)
