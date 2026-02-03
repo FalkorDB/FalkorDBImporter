@@ -1,0 +1,6 @@
+# Clippy configuration for FalkorDB Importer
+# See https://doc.rust-lang.org/clippy/configuration.html for all options
+
+# Enable pedantic warnings
+# (Note: Individual lints are enabled via #[warn(clippy::pedantic)] in code)
+
