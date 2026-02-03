@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod pool;
+pub mod postgres;
 pub mod registry;
 pub mod schema;
 pub mod types;
@@ -12,10 +13,11 @@ pub use config::DataSourceConfig;
 pub use error::{ConnectorError, ConnectorResult};
 #[allow(unused_imports)]
 pub use pool::ConnectionPool;
+pub use postgres::PostgresConnector;
 #[allow(unused_imports)]
 pub use registry::ConnectorRegistry;
-pub use schema::TableInfo;
-pub use types::DataRow;
+pub use schema::{ColumnInfo, ForeignKeyInfo, TableInfo, TableType};
+pub use types::{DataRow, DataType, DataValue};
 
 /// Core trait that all data source connectors must implement
 #[async_trait]
