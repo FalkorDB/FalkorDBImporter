@@ -6,6 +6,14 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lib]
+name = "falkordb_importer_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "falkordb-importer-backend"
+path = "src/main.rs"
+
 [dependencies]
 # Workspace dependencies
 tokio = { workspace = true }

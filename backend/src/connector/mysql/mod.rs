@@ -11,6 +11,7 @@ use crate::connector::{
 };
 
 /// MySQL/MariaDB connector implementation
+#[allow(dead_code)]
 pub struct MysqlConnector {
     pool: Option<Pool>,
     config: MysqlConfig,
@@ -18,6 +19,7 @@ pub struct MysqlConnector {
 
 /// MySQL-specific configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MysqlConfig {
     host: String,
     port: u16,
@@ -29,6 +31,7 @@ struct MysqlConfig {
 
 impl MysqlConnector {
     /// Create a new MySQL connector from configuration
+    #[allow(dead_code)]
     pub fn new(config: DataSourceConfig) -> ConnectorResult<Self> {
         match config {
             DataSourceConfig::Mysql {
@@ -56,6 +59,7 @@ impl MysqlConnector {
     }
 
     /// Build MySQL connection options
+    #[allow(dead_code)]
     fn build_opts(&self) -> OptsBuilder {
         let mut opts = OptsBuilder::default()
             .ip_or_hostname(&self.config.host)
@@ -73,6 +77,7 @@ impl MysqlConnector {
     }
 
     /// Get a connection from the pool
+    #[allow(dead_code)]
     async fn get_conn(&self) -> ConnectorResult<Conn> {
         let pool = self
             .pool
@@ -85,6 +90,7 @@ impl MysqlConnector {
     }
 
     /// Map MySQL column type to DataType
+    #[allow(dead_code)]
     fn map_column_type(column_type: &str, _flags: u16) -> DataType {
         let col_type_lower = column_type.to_lowercase();
 
@@ -136,6 +142,7 @@ impl MysqlConnector {
     }
 
     /// Convert MySQL value to DataValue
+    #[allow(dead_code)]
     fn convert_value(value: mysql_async::Value) -> DataValue {
         use mysql_async::Value;
 
@@ -379,6 +386,7 @@ impl DataSourceConnector for MysqlConnector {
 // Helper methods for MysqlConnector
 impl MysqlConnector {
     /// Get column information for a table
+    #[allow(dead_code)]
     async fn get_table_columns(
         &self,
         conn: &mut Conn,
@@ -429,6 +437,7 @@ impl MysqlConnector {
     }
 
     /// Get primary key columns for a table
+    #[allow(dead_code)]
     async fn get_primary_keys(
         &self,
         conn: &mut Conn,
@@ -456,6 +465,7 @@ impl MysqlConnector {
     }
 
     /// Get foreign key relationships for a table
+    #[allow(dead_code)]
     async fn get_foreign_keys(
         &self,
         conn: &mut Conn,
