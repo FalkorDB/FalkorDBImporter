@@ -21,6 +21,7 @@ tracing-subscriber = { workspace = true }
 config = { workspace = true }
 utoipa = { workspace = true }
 utoipa-swagger-ui = { workspace = true }
+uuid = { workspace = true }
 
 # Additional dependencies for connectors
 async-trait = "0.1"

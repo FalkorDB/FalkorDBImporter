@@ -2,10 +2,12 @@ mod api;
 mod config;
 mod connector;
 mod error;
+mod jobs;
 mod shutdown;
 
 use axum::Router;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -13,6 +15,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use config::AppConfig;
 use error::AppResult;
+use jobs::JobManager;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
@@ -38,6 +41,10 @@ async fn main() -> AppResult<()> {
     );
     tracing::info!("Configuration loaded: {}", config);
 
+    // Initialize job manager with default TTL of 1 hour (3600 seconds)
+    let job_manager = Arc::new(JobManager::new(3600));
+    tracing::info!("Job manager initialized with TTL: 3600 seconds");
+
     // Set up static file serving with SPA fallback
     tracing::info!("Serving frontend from: {}", config.server.frontend_dir);
 
@@ -46,7 +53,7 @@ async fn main() -> AppResult<()> {
         ServeDir::new(&config.server.frontend_dir).not_found_service(ServeFile::new(&index_path));
 
     // Build API router
-    let api_router = api::create_router();
+    let api_router = api::create_router(job_manager);
 
     // Build main application router with backward-compatible /health endpoint
     let app = Router::new()
