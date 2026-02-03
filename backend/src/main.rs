@@ -20,10 +20,9 @@ async fn main() -> anyhow::Result<()> {
     // Set up static file serving with SPA fallback
     let frontend_dir = env::var("FRONTEND_DIR").unwrap_or_else(|_| "../frontend/dist".to_string());
     tracing::info!("Serving frontend from: {}", frontend_dir);
-    
+
     let index_path = format!("{}/index.html", frontend_dir);
-    let serve_dir = ServeDir::new(&frontend_dir)
-        .not_found_service(ServeFile::new(&index_path));
+    let serve_dir = ServeDir::new(&frontend_dir).not_found_service(ServeFile::new(&index_path));
 
     // Build router
     let app = Router::new()
