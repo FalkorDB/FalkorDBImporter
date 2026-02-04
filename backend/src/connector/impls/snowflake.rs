@@ -78,20 +78,20 @@ impl SnowflakeConnector {
     #[allow(dead_code)]
     fn parse_json_row(row_value: &Value) -> HashMap<String, Value> {
         let mut row_map = HashMap::new();
-        
+
         if let Some(_row_array) = row_value.as_array() {
             // If the row is an array, we need to use column names
             // For now, just return empty map as we need schema metadata
             // This will be properly handled by accessing result metadata
             return row_map;
         }
-        
+
         if let Some(obj) = row_value.as_object() {
             for (key, value) in obj {
                 row_map.insert(key.clone(), value.clone());
             }
         }
-        
+
         row_map
     }
 
@@ -234,10 +234,9 @@ impl DataSourceConnector for SnowflakeConnector {
                         if let Some(row_array) = row.as_array() {
                             // Snowflake returns rows as arrays by default
                             if row_array.len() >= 2 {
-                                if let (Some(table_name), Some(table_type_str)) = (
-                                    row_array[0].as_str(),
-                                    row_array[1].as_str(),
-                                ) {
+                                if let (Some(table_name), Some(table_type_str)) =
+                                    (row_array[0].as_str(), row_array[1].as_str())
+                                {
                                     let table_type = match table_type_str.to_uppercase().as_str() {
                                         "VIEW" => TableType::View,
                                         "MATERIALIZED VIEW" => TableType::MaterializedView,
