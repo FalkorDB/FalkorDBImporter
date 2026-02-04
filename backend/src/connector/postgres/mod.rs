@@ -1,6 +1,6 @@
 use crate::connector::{
-    ColumnInfo, ConnectorError, ConnectorResult, DataRow, DataSourceConfig,
-    DataSourceConnector, DataType, DataValue, ForeignKeyInfo, TableInfo, TableType,
+    ColumnInfo, ConnectorError, ConnectorResult, DataRow, DataSourceConfig, DataSourceConnector,
+    DataType, DataValue, ForeignKeyInfo, TableInfo, TableType,
 };
 use async_trait::async_trait;
 use futures::stream::{BoxStream, StreamExt};
@@ -58,11 +58,7 @@ impl PostgresConnector {
     /// Build connection string from configuration
     /// Note: This connection string contains sensitive credentials and should never be logged
     fn build_connection_string(&self) -> String {
-        let ssl_mode = if self.config.ssl {
-            "require"
-        } else {
-            "prefer"
-        };
+        let ssl_mode = if self.config.ssl { "require" } else { "prefer" };
 
         format!(
             "postgres://{}:{}@{}:{}/{}?sslmode={}",
@@ -148,7 +144,8 @@ impl PostgresConnector {
                 .try_get::<f64, _>(column_name)
                 .map(DataValue::Float)
                 .unwrap_or(DataValue::Null),
-            "varchar" | "character varying" | "char" | "character" | "text" | "numeric" | "decimal" | "uuid" => row
+            "varchar" | "character varying" | "char" | "character" | "text" | "numeric"
+            | "decimal" | "uuid" => row
                 .try_get::<String, _>(column_name)
                 .map(DataValue::String)
                 .unwrap_or(DataValue::Null),
@@ -414,9 +411,11 @@ impl DataSourceConnector for PostgresConnector {
             let referenced_table: String = row.get("referenced_table");
             let referenced_column: String = row.get("referenced_column");
 
-            foreign_keys_map
-                .entry(constraint_name.clone())
-                .or_insert((Vec::new(), referenced_table.clone(), Vec::new()));
+            foreign_keys_map.entry(constraint_name.clone()).or_insert((
+                Vec::new(),
+                referenced_table.clone(),
+                Vec::new(),
+            ));
 
             if let Some((columns, _, ref_cols)) = foreign_keys_map.get_mut(&constraint_name) {
                 columns.push(column_name);
@@ -426,12 +425,14 @@ impl DataSourceConnector for PostgresConnector {
 
         let foreign_keys = foreign_keys_map
             .into_iter()
-            .map(|(name, (columns, referenced_table, referenced_columns))| ForeignKeyInfo {
-                name,
-                columns,
-                referenced_table,
-                referenced_columns,
-            })
+            .map(
+                |(name, (columns, referenced_table, referenced_columns))| ForeignKeyInfo {
+                    name,
+                    columns,
+                    referenced_table,
+                    referenced_columns,
+                },
+            )
             .collect();
 
         // Get row count estimate
@@ -465,14 +466,14 @@ impl DataSourceConnector for PostgresConnector {
             .ok_or_else(|| ConnectorError::Connection("Not connected".to_string()))?;
 
         let schema = self.get_schema();
-        
+
         // Use schema-qualified table name with proper escaping
         let full_table_name = format!("{}.{}", schema, table_name);
-        
+
         // Note: PostgreSQL doesn't support binding table names, so we use string formatting
         // but ensure proper quoting to prevent SQL injection
         let quote_ident = |ident: &str| format!("\"{}\"", ident.replace("\"", "\"\""));
-        
+
         let query = format!(
             "SELECT * FROM {}.{} LIMIT $1",
             quote_ident(&schema),
@@ -500,10 +501,10 @@ impl DataSourceConnector for PostgresConnector {
 
         let schema = self.get_schema();
         let table_name = table_name.to_string();
-        
+
         // Simple identifier quoting helper
         let quote_ident = |ident: &str| format!("\"{}\"", ident.replace("\"", "\"\""));
-        
+
         let query = format!(
             "SELECT * FROM {}.{}",
             quote_ident(&schema),
@@ -518,10 +519,10 @@ impl DataSourceConnector for PostgresConnector {
             .map_err(|e| ConnectorError::DataStreaming(format!("Failed to fetch data: {}", e)))?;
 
         let data_rows: Vec<DataRow> = rows.iter().map(Self::pg_row_to_data_row).collect();
-        
+
         // Convert Vec to stream
         let stream = futures::stream::iter(data_rows.into_iter().map(Ok));
-        
+
         Ok(stream.boxed())
     }
 
@@ -612,10 +613,7 @@ mod tests {
         assert_eq!(PostgresConnector::map_pg_type("int4"), DataType::Integer);
         assert_eq!(PostgresConnector::map_pg_type("int8"), DataType::BigInt);
         assert_eq!(PostgresConnector::map_pg_type("text"), DataType::Text);
-        assert_eq!(
-            PostgresConnector::map_pg_type("varchar"),
-            DataType::Varchar
-        );
+        assert_eq!(PostgresConnector::map_pg_type("varchar"), DataType::Varchar);
         assert_eq!(PostgresConnector::map_pg_type("boolean"), DataType::Boolean);
         assert_eq!(PostgresConnector::map_pg_type("uuid"), DataType::Uuid);
         assert_eq!(PostgresConnector::map_pg_type("json"), DataType::Json);
