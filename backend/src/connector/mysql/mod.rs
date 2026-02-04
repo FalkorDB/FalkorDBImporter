@@ -354,7 +354,11 @@ impl DataSourceConnector for MysqlConnector {
     ) -> ConnectorResult<BoxStream<'static, ConnectorResult<DataRow>>> {
         let mut conn = self.get_conn().await?;
 
-        let query = format!("SELECT * FROM `{}`.`{}`", self.config.database, table_name);
+        let query = format!(
+            "SELECT * FROM `{}`.`{}`",
+            self.escape_identifier(&self.config.database),
+            self.escape_identifier(table_name)
+        );
 
         // For now, we'll collect all rows and convert to stream
         // This is a simplified implementation
