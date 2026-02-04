@@ -51,6 +51,7 @@ pub trait DataSourceConnector: Send + Sync {
 }
 
 /// Initialize and register all available connectors
+#[allow(dead_code)]
 pub async fn register_connectors(registry: &ConnectorRegistry) -> ConnectorResult<()> {
     // Register PostgreSQL connector
     registry

@@ -8,6 +8,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::{Column, Row, TypeInfo, ValueRef};
 
 /// PostgreSQL database connector
+#[allow(dead_code)]
 pub struct PostgresConnector {
     pool: Option<PgPool>,
     config: PostgresConfig,
@@ -15,6 +16,7 @@ pub struct PostgresConnector {
 
 /// PostgreSQL configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct PostgresConfig {
     host: String,
     port: u16,
@@ -25,6 +27,7 @@ struct PostgresConfig {
     schema: Option<String>,
 }
 
+#[allow(dead_code)]
 impl PostgresConnector {
     /// Create a new PostgreSQL connector from configuration
     pub fn new(config: DataSourceConfig) -> ConnectorResult<Self> {
@@ -466,9 +469,6 @@ impl DataSourceConnector for PostgresConnector {
             .ok_or_else(|| ConnectorError::Connection("Not connected".to_string()))?;
 
         let schema = self.get_schema();
-
-        // Use schema-qualified table name with proper escaping
-        let full_table_name = format!("{}.{}", schema, table_name);
 
         // Note: PostgreSQL doesn't support binding table names, so we use string formatting
         // but ensure proper quoting to prevent SQL injection
