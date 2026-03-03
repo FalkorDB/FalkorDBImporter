@@ -13,7 +13,7 @@ repository = "https://github.com/FalkorDB/FalkorDBImporter"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.42", features = ["full"] }
+tokio = { version = "1.50", features = ["full"] }
 
 # Web framework
 axum = { version = "0.8", features = ["macros"] }
