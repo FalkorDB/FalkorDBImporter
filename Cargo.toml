@@ -40,7 +40,7 @@ utoipa = { version = "5.4", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
 
 # UUID generation
-uuid = { version = "1.11", features = ["v4", "serde"] }
+uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Testing
 mockall = "0.14"
