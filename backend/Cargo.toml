@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+snowflake = ["dep:snowflake-api"]
+
 [dependencies]
 # Workspace dependencies
 tokio = { workspace = true }
@@ -27,6 +31,9 @@ uuid = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 hex = "0.4"
+
+# Snowflake connector
+snowflake-api = { version = "0.14", optional = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

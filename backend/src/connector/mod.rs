@@ -1,5 +1,6 @@
 pub mod config;
 pub mod error;
+pub mod impls;
 pub mod pool;
 pub mod registry;
 pub mod schema;
@@ -47,4 +48,40 @@ pub trait DataSourceConnector: Send + Sync {
 
     /// Close the connection and cleanup resources
     async fn disconnect(&mut self) -> ConnectorResult<()>;
+}
+
+/// Factory function to create a connector from configuration
+#[allow(dead_code)]
+pub fn create_connector(config: DataSourceConfig) -> ConnectorResult<Box<dyn DataSourceConnector>> {
+    match config {
+        #[cfg(feature = "snowflake")]
+        DataSourceConfig::Snowflake {
+            account,
+            warehouse,
+            database,
+            schema,
+            username,
+            password,
+            private_key_pem,
+            private_key_path,
+            role,
+        } => {
+            let connector = impls::SnowflakeConnector::new(
+                account,
+                warehouse,
+                database,
+                schema,
+                username,
+                password,
+                private_key_pem,
+                private_key_path,
+                role,
+            );
+            Ok(Box::new(connector))
+        }
+        _ => Err(ConnectorError::UnsupportedOperation(format!(
+            "Connector not implemented for type: {}",
+            config.connection_type()
+        ))),
+    }
 }

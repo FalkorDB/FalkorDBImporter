@@ -66,7 +66,12 @@ pub enum DataSourceConfig {
         database: String,
         schema: String,
         username: String,
-        password: String,
+        #[serde(default)]
+        password: Option<String>,
+        #[serde(default)]
+        private_key_pem: Option<String>,
+        #[serde(default)]
+        private_key_path: Option<String>,
         #[serde(default)]
         role: Option<String>,
     },
