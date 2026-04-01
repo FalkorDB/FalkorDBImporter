@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod pool;
+pub mod postgres;
 pub mod registry;
 pub mod schema;
 pub mod types;
@@ -12,10 +13,10 @@ pub use config::DataSourceConfig;
 pub use error::{ConnectorError, ConnectorResult};
 #[allow(unused_imports)]
 pub use pool::ConnectionPool;
-#[allow(unused_imports)]
+pub use postgres::PostgresConnector;
 pub use registry::ConnectorRegistry;
-pub use schema::TableInfo;
-pub use types::DataRow;
+pub use schema::{ColumnInfo, ForeignKeyInfo, TableInfo, TableType};
+pub use types::{DataRow, DataType, DataValue};
 
 /// Core trait that all data source connectors must implement
 #[async_trait]
@@ -47,4 +48,20 @@ pub trait DataSourceConnector: Send + Sync {
 
     /// Close the connection and cleanup resources
     async fn disconnect(&mut self) -> ConnectorResult<()>;
+}
+
+/// Initialize and register all available connectors
+#[allow(dead_code)]
+pub async fn register_connectors(registry: &ConnectorRegistry) -> ConnectorResult<()> {
+    // Register PostgreSQL connector
+    registry
+        .register("postgres".to_string(), |config| {
+            let connector = PostgresConnector::new(config)?;
+            Ok(Box::new(connector) as Box<dyn DataSourceConnector>)
+        })
+        .await?;
+
+    tracing::info!("PostgreSQL connector registered");
+
+    Ok(())
 }

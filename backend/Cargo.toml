@@ -27,6 +27,7 @@ uuid = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 hex = "0.4"
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "tls-rustls", "rust_decimal", "uuid", "json", "time", "chrono"] }
 
 [dev-dependencies]
 mockall = { workspace = true }
